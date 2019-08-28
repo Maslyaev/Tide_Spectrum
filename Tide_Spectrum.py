@@ -12,22 +12,26 @@ import scipy.signal as signal
 from netCDF4 import Dataset
 import math
 
-def Process_point(val_ts, expected_tide_period = 12.4):
+def Process_point(val_ts, expected_tide_periods = [12.4]):
     Domain = Spatial_Domain(val_ts)
     spectrum = Domain.Get_Amplitudes()
-    eps = 0.03
-
-    tide_period = expected_tide_period; tide_amplitude = 0
-    for wave in spectrum:
-        amplitude = wave[0]; period = wave[1]
-        if abs(period - expected_tide_period) < eps:
-            tide_period = expected_tide_period; tide_amplitude = amplitude
-            print('difference between periods:', period - expected_tide_period, 'amplitude:', amplitude)            
-            break
-    return tide_amplitude
+    eps = 0.1
+    
+    amplitudes = []
+    for expected_tide_period in expected_tide_periods:
+        tide_period = expected_tide_period; tide_amplitude = 0
+        for wave in spectrum:
+            amplitude = wave[0]; period = wave[1]
+            if abs(period - expected_tide_period) < eps:
+                tide_period = expected_tide_period; tide_amplitude = amplitude
+                #print('difference between periods:', period, 'amplitude:', amplitude)            
+                break
+        amplitudes.append(tide_amplitude)       
+    #print(amplitudes)
+    return amplitudes
         
 
-def Apply_Spectral_To_Matrix(Data, expected_tide_period = 12.4):
+def Apply_Spectral_To_Matrix(Data, bathy, expected_tide_periods = [12.4]):
     '''
     
     main function of the framework: the first dimension of the Data must be time
@@ -37,9 +41,12 @@ def Apply_Spectral_To_Matrix(Data, expected_tide_period = 12.4):
     for i in range(Data[0].shape[0]):
         res_row = []
         for j in range(Data[0].shape[1]):
-            print('processing cell i: %4d, j:%4d; expected period: %3.2f' % (i, j, expected_tide_period))
-            temp = Process_point(Data[:, i, j], expected_tide_period = expected_tide_period)
-            res_row.append(temp)
+            print('processing cell i: %4d, j:%4d' % (i, j)) #; expected period: %3.2f , expected_tide_periods
+            if bathy[i, j]:
+                temp = Process_point(Data[:, i, j], expected_tide_periods = expected_tide_periods)
+                res_row.append(temp)
+            else:
+                temp = [0j] * len(expected_tide_periods)
         result_matrix.append(res_row)
     return result_matrix
 
@@ -152,16 +159,33 @@ def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = '', exa
     
     
 if __name__ == "__main__":
+    bathy_file = Dataset('bathy_meter_mask.nc', 'r', format='NETCDF4')
+    bathy = bathy_file.variables["Bathymetry"][:].data
+    bathy = np.transpose(bathy)
+    bathy_file.close()
+    
     data = np.load('ssh_july.npy')[:360, :, :]
-    P1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 24.0)).reshape(data[0].shape)
-    K1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 23.96)).reshape(data[0].shape)
-    O1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 25.74)).reshape(data[0].shape)
-    S2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.0)).reshape(data[0].shape)
-    M2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.4)).reshape(data[0].shape)
-    Create_netCDF({'P1_Elevation_harmonic' : P1_harmonic,
-                   'K1_Elevation_harmonic' : K1_harmonic,
-                   'O1_Elevation_harmonic' : O1_harmonic,
-                   'S2_Elevation_harmonic' : S2_harmonic,
-                   'M2_Elevation_harmonic' : M2_harmonic})
+    
+    periods = [24.0, 23.96, 25.74, 12.0, 12.4]
+    harmonics = Apply_Spectral_To_Matrix(data, bathy, periods)
+    harmonics_matrix = np.array(harmonics).reshape((data[0].shape[0], data[0].shape[1], len(periods)))
+
+    Create_netCDF({'P1_Elevation_harmonic' : harmonics_matrix[:, :, 0],
+                   'K1_Elevation_harmonic' : harmonics_matrix[:, :, 1],
+                   'O1_Elevation_harmonic' : harmonics_matrix[:, :, 2],
+                   'S2_Elevation_harmonic' : harmonics_matrix[:, :, 3],
+                   'M2_Elevation_harmonic' : harmonics_matrix[:, :, 4]})
+    
+    
+#    P1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 24.0)).reshape(data[0].shape)
+#    K1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 23.96)).reshape(data[0].shape)
+#    O1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 25.74)).reshape(data[0].shape)
+#    S2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.0)).reshape(data[0].shape)
+#    M2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.4)).reshape(data[0].shape)
+#    Create_netCDF({'P1_Elevation_harmonic' : P1_harmonic,
+#                   'K1_Elevation_harmonic' : K1_harmonic,
+#                   'O1_Elevation_harmonic' : O1_harmonic,
+#                   'S2_Elevation_harmonic' : S2_harmonic,
+#                   'M2_Elevation_harmonic' : M2_harmonic})
     
     
