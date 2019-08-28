@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 '''
-Саш, у меня тут вопрос. В сетки частот, полученной из ДПФ у меня получается так, что некоторые частоты неплохо соответствуют приливам 
-(например, 12.414 весьма неплохо соответствует 12.4206 от М2). Но вот с некоторыми приливами вроде 
+
 '''
+
 import numpy as np
 import numpy.fft as fft
 import matplotlib.pyplot as plt
@@ -68,10 +69,10 @@ class Spatial_Domain:
         self.fourier_transform()
         
     def fourier_transform(self, print_mode = False):
-        self.ts_transformed = fft.rfft(self.ts)
+        self.ts_transformed = fft.fft(self.ts)
         self.ts_transformed.real = self.ts_transformed.real / self.ts.shape[0]
         self.ts_transformed.imag = self.ts_transformed.imag / self.ts.shape[0]
-        self.frequencies = fft.rfftfreq(self.ts.size, d = 1.0) #/signal_rate
+        self.frequencies = fft.fftfreq(self.ts.size, d = 1.0) #/signal_rate
         self.periods_real = Periods_Decreasing_Order(self.ts_transformed, self.frequencies, part = 'real')
         self.periods_imag = Periods_Decreasing_Order(self.ts_transformed, self.frequencies, part = 'imag')
         if print_mode:
@@ -151,11 +152,16 @@ def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = '', exa
     
     
 if __name__ == "__main__":
-    data = np.load('ssh_july.npy')
-    Res_solar_diurnal = np.array(Apply_Spectral_To_Matrix(data, 24.0)).reshape(data[0].shape)
-    Res_lunar_diurnal_K1 = np.array(Apply_Spectral_To_Matrix(data, 23.96)).reshape(data[0].shape)
-    Res_lunar_diurnal_O1 = np.array(Apply_Spectral_To_Matrix(data, 25.8)).reshape(data[0].shape)
-    Res_solar_semi_diurnal = np.array(Apply_Spectral_To_Matrix(data, 12.0)).reshape(data[0].shape)
-    Res_lunar_semi_diurnal = np.array(Apply_Spectral_To_Matrix(data, 12.4)).reshape(data[0].shape)
+    data = np.load('ssh_july.npy')[:360, :, :]
+    P1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 24.0)).reshape(data[0].shape)
+    K1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 23.96)).reshape(data[0].shape)
+    O1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 25.74)).reshape(data[0].shape)
+    S2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.0)).reshape(data[0].shape)
+    M2_harmonic = np.array(Apply_Spectral_To_Matrix(data, 12.4)).reshape(data[0].shape)
+    Create_netCDF({'P1_Elevation_harmonic' : P1_harmonic,
+                   'K1_Elevation_harmonic' : K1_harmonic,
+                   'O1_Elevation_harmonic' : O1_harmonic,
+                   'S2_Elevation_harmonic' : S2_harmonic,
+                   'M2_Elevation_harmonic' : M2_harmonic})
     
     
