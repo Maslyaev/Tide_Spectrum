@@ -15,7 +15,7 @@ import math
 def Process_point(val_ts, expected_tide_periods = [12.4]):
     Domain = Spatial_Domain(val_ts)
     spectrum = Domain.Get_Amplitudes()
-    eps = 0.1
+    eps = 0.05
     
     amplitudes = []
     for expected_tide_period in expected_tide_periods:
@@ -27,7 +27,6 @@ def Process_point(val_ts, expected_tide_periods = [12.4]):
                 #print('difference between periods:', period, 'amplitude:', amplitude)            
                 break
         amplitudes.append(tide_amplitude)       
-    #print(amplitudes)
     return amplitudes
         
 
@@ -47,6 +46,7 @@ def Apply_Spectral_To_Matrix(Data, bathy, expected_tide_periods = [12.4]):
                 res_row.append(temp)
             else:
                 temp = [0j] * len(expected_tide_periods)
+                res_row.append(temp)
         result_matrix.append(res_row)
     return result_matrix
 
@@ -87,27 +87,12 @@ class Spatial_Domain:
             print('imag:', self.periods_imag)
         
         
-    def Plot_Result(self, x_axis = 'periods', transf_type = 'periodogram', size = 100):
+    def Plot_Result(self, x_axis = 'periods', size = 100):
         if x_axis == 'periods':
-            if transf_type == 'periodogram':
-                plt.plot(1/self.frequencies, self.power_spectrum)     # self.frequencies
-            else:
-                plt.plot(1/self.frequencies, self.ts_transformed.real, color = 'r')
+            plt.plot(1/self.frequencies, self.ts_transformed.real, color = 'r')
         elif x_axis == 'frequencies':
-            if transf_type == 'periodogram':
-                plt.plot(self.frequencies, self.power_spectrum)     # self.frequencies
-            else:
-                plt.plot(self.frequencies, self.ts_transformed.real, color = 'r')
-            
-            #plt.plot(1/self.frequencies, self.ts_transformed.imag, color = 'b')            
-            
-    def Periodogram(self):
-        fs = 1/3600
-        f, Pxx_den = signal.periodogram(self.ts, fs, scaling = 'spectrum')
-        plt.semilogy(f, Pxx_den)
-        self.power_spectrum = Pxx_den
-        self.frequencies = f
-        plt.show()
+            plt.plot(self.frequencies, self.ts_transformed.real, color = 'r')
+
     
     def Get_Amplitudes(self):
         return list(zip(np.flip(np.sort(self.ts_transformed)), self.periods_real))
@@ -129,7 +114,7 @@ def Create_variable(file, name, var_format, dimensions):
 
 
 def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = '', example_netCDF = None):
-    nc_file = Dataset('twst.nc', 'w', format = 'NETCDF4')
+    nc_file = Dataset(file_name, 'w', format = 'NETCDF4')
     nc_file.description = file_description
     
     nc_file.createDimension(dimname = 'x_grid_T', size = data[0].shape[0])
@@ -161,10 +146,10 @@ def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = '', exa
 if __name__ == "__main__":
     bathy_file = Dataset('bathy_meter_mask.nc', 'r', format='NETCDF4')
     bathy = bathy_file.variables["Bathymetry"][:].data
-    bathy = np.transpose(bathy)
+    #bathy = np.transpose(bathy)
     bathy_file.close()
     
-    data = np.load('ssh_july.npy')[:360, :, :]
+    data = np.load('ssh_july.npy')[:, :, :]
     
     periods = [24.0, 23.96, 25.74, 12.0, 12.4]
     harmonics = Apply_Spectral_To_Matrix(data, bathy, periods)
@@ -174,7 +159,7 @@ if __name__ == "__main__":
                    'K1_Elevation_harmonic' : harmonics_matrix[:, :, 1],
                    'O1_Elevation_harmonic' : harmonics_matrix[:, :, 2],
                    'S2_Elevation_harmonic' : harmonics_matrix[:, :, 3],
-                   'M2_Elevation_harmonic' : harmonics_matrix[:, :, 4]})
+                   'M2_Elevation_harmonic' : harmonics_matrix[:, :, 4]}, file_name = 'tides.nc')
     
     
 #    P1_harmonic = np.array(Apply_Spectral_To_Matrix(data, 24.0)).reshape(data[0].shape)
