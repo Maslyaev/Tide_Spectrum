@@ -26,8 +26,8 @@ def Heatmap(Matrix, interval = None, area = ((0, 1), (0, 1))):
     plt.show()
 
 def Plot_Harmonic(index, nc_file_object):
-    Heatmap(nc_file_object.variables[index+'Elevation_harmonic_real_part'][:]**2 
-            + nc_file_object.variables[index+'Elevation_harmonic_imaginary_part'][:]**2)
+    Heatmap(np.sqrt(nc_file_object.variables[index+'_Elevation_harmonic_real_part'][:]**2 
+            + nc_file_object.variables[index+'_Elevation_harmonic_imaginary_part'][:]**2))
 
 if __name__ == "__main__":
     bathy_file = Dataset('bathy_meter_mask.nc', 'r', format='NETCDF4')
