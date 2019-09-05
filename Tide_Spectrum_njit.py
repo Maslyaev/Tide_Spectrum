@@ -4,6 +4,7 @@
 '''
 
 '''
+
 import math
 
 import numpy as np
@@ -14,8 +15,26 @@ import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 
 
-def Process_point(val_ts, expected_tide_periods = [12.4]):
-    Domain = Spatial_Domain(val_ts, only_spec_periods=True, periods=expected_tide_periods)
+def Process_point(val_ts, d = 1.0, expected_tide_periods = [12.4], zeros_padding_number = 0):
+    '''
+    
+    Calculate tide amplitudes for selected periods, using passed time-series;
+    
+    Parameters:    
+        val_ts : float array, Contains time-series; 
+        
+        d : float, optional: default value of 1.0, Period between observations;    
+        
+        expected_tide_periods : list of array of floats, optional: default value of 12.4 (M2 - tide), Periods, for which the amplitudes are calculated;    
+        
+        zeros_padding_number : int, numbers of zeros, optional, Added padding for the array = val_ts.size * zeros_padding_number;
+    
+    Returns:
+        amplitudes: : list of np.complex128, amplitudes for the expected_tide_periods
+    
+    '''
+    
+    Domain = Spatial_Domain(val_ts, d = d, only_spec_periods=True, periods=expected_tide_periods, zeros_padding_number = zeros_padding_number)
     spectrum = Domain.Get_Amplitudes()
     eps = 0.05
     
@@ -32,14 +51,29 @@ def Process_point(val_ts, expected_tide_periods = [12.4]):
     return amplitudes
         
 
-def Apply_Spectral_To_Matrix(Data, bathy, expected_tide_periods = [12.4], zeros_padding_number = 0):
+def Apply_Spectral_To_Matrix(Data, bathy = None, d = 1.0, expected_tide_periods = [12.4], zeros_padding_number = 0):
     '''
     
-    main function of the framework: the first dimension of the Data must be time
+    Calculation of amplitudes of tidal waves, using data about SSH;
+    
+    Parameters:
+        Data : float numpy matrix with 3 dimensions: time, x, y, Contains data about SSH for the selected area;
+        
+        bathy : numpy array of 0 and 1, optional: default values: 1, Contains data about the conditions of the points if they are land (value of 0) or in the sea (value of 1)
+        
+        d : float, optional: default value of 1.0, Period between observations;    
+        
+        zeros_padding_number : int, numbers of zeros, optional, Added padding for the array = val_ts.size * zeros_padding_number;
+    
+    Returns:
+        result_matrix : np.complex128 numpy matrix of shape (Data.shape[1], Data.shape[2], len(expected_tide_periods)), containing amplitudes of tide;
     
     '''
     
     Data = Add_zeros_padding(Data, zeros_padding_number)
+
+    if bathy == None:
+        bathy = np.ones(Data[0, :, :].shape)
 
     result_matrix = []
     for i in range(Data[0].shape[0]):
@@ -47,7 +81,7 @@ def Apply_Spectral_To_Matrix(Data, bathy, expected_tide_periods = [12.4], zeros_
         for j in range(Data[0].shape[1]):
             print('processing cell i: %4d, j:%4d' % (i, j)) #; expected period: %3.2f , expected_tide_periods
             if bathy[i, j]:
-                temp = Process_point(Data[:, i, j], expected_tide_periods = expected_tide_periods)
+                temp = Process_point(Data[:, i, j], d = d, expected_tide_periods = expected_tide_periods, zeros_padding_number)
                 res_row.append(temp)
             else:
                 temp = [0j] * len(expected_tide_periods)
@@ -57,6 +91,10 @@ def Apply_Spectral_To_Matrix(Data, bathy, expected_tide_periods = [12.4], zeros_
 
 
 def Add_zeros_padding(Data, zeros_padding_number):
+    '''
+    Concatenate Data.shape[0] x zeros_padding_number number of zeros to the data matrix for improved amplitude calculation accuracy. Reduced the framework performance
+    '''    
+
     zeros = np.zeros((Data.shape[0] * zeros_padding_number, Data.shape[1], Data.shape[2]))
     return np.concatenate((Data, zeros), axis = 0)
 
@@ -74,6 +112,22 @@ def Periods_Decreasing_Order(amplitudes, freq, part = 'real'):
 
 @nb.jit(nb.types.Tuple((nb.float64[:], nb.complex128[:]))(nb.float64[:], nb.float64[:], nb.float64), nopython=True)
 def FT_single_freq(samples, freq, sample_freq = 1.0):
+    '''
+    Calculation of amplitudes for selected set of frequencies;
+    
+    Parameters:
+        samples : numpy array of float64, containing series of values;
+        
+        freq : numpy array of float64, contating frequences for amplitudes;
+        
+        sample_freq : float64, sample frequency, inverse to the sample period;
+        
+    Returns:
+        freq : numpy array of float64, contating frequences for amplitudes;
+        
+        X : numpy array of complex128, contatining complex amplitudes for selected frequencies;
+    '''
+    
     k = np.full(freq.shape[0], samples.size, dtype = np.float64)*freq*np.full(freq.shape[0], sample_freq, dtype = np.float64) #_unrounded 
     X = np.zeros(freq.size, dtype = np.complex128)
     for k_idx in np.arange(k.shape[0]):
@@ -87,19 +141,14 @@ def FT_single_freq(samples, freq, sample_freq = 1.0):
 
     
 class Spatial_Domain:
-    def __init__(self, time_series, d = 1.0, only_spec_periods = False, periods = [12.4]):
-        
-        '''
-        
-        point - time-series for one spatial point
-        
-        '''
+    def __init__(self, time_series, d = 1.0, only_spec_periods = False, periods = [12.4], zeros_padding_number = 0):
         
         self.ts = np.array(time_series, dtype = np.float64)
         if only_spec_periods:
             freq = 1/np.array(periods)
             #print(type(self.ts), type(freq))
             self.frequencies, self.ts_transformed = FT_single_freq(self.ts, freq, sample_freq = 1.0)
+            self.ts_transformed = self.ts_transformed * (1 + zeros_padding_number)
             self.periods_real = Periods_Decreasing_Order(self.ts_transformed, self.frequencies, part = 'real')
             self.periods_imag = Periods_Decreasing_Order(self.ts_transformed, self.frequencies, part = 'imag')            
         else:
@@ -144,7 +193,21 @@ def Create_variable(file, name, var_format, dimensions):
     return [real_part, imaginary_part]
 
 
-def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = '', example_netCDF = None):
+def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = ''):
+    
+    '''
+    
+    Write netCDF file with the calculated tide amplitudes; 
+    
+    Parameters:
+        data_dict : dictionary with structure: key - index of tide (e.g. 'P1_Elevation_harmonic'), value - matrix of tide amplitude;
+        
+        file_name : string, output file name;
+        
+        file_description : string, description for output netCDF file;
+    
+    '''
+    
     nc_file = Dataset(file_name, 'w', format = 'NETCDF4')
     nc_file.description = file_description
     
@@ -181,7 +244,7 @@ if __name__ == "__main__":
     data = np.load('ssh_july.npy')[:, :, :]
     
     periods = [24.0, -24.0, 23.96, -23.96, 25.74, -25.74, 12.0, -12.0, 12.4, -12.4]
-    harmonics = Apply_Spectral_To_Matrix(data, bathy, periods, zeros_padding_number=1)
+    harmonics = Apply_Spectral_To_Matrix(data, bathy, periods, zeros_padding_number=0)
     harmonics_matrix = np.array(harmonics).reshape((data[0].shape[0], data[0].shape[1], len(periods)))
 
     Create_netCDF({'P1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 0]) + abs(harmonics_matrix[:, :, 1]),
