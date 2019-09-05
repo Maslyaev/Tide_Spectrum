@@ -9,7 +9,7 @@ Created on Thu Sep  5 17:35:43 2019
 
 import numpy as np
 from netCDF4 import Dataset
-import Tides_Spectrum as Tides
+import Tide_Spectrum as Tides
 import matplotlib.pyplot as plt
 
 def Heatmap(Matrix, interval = None, area = ((0, 1), (0, 1))):
@@ -37,14 +37,14 @@ if __name__ == "__main__":
     data = np.load('ssh_july.npy')[:, :, :]
     
     periods = [24.0, -24.0, 23.96, -23.96, 25.74, -25.74, 12.0, -12.0, 12.4, -12.4]
-    harmonics = Tides.Apply_Spectral_To_Matrix(data, bathy, periods, zeros_padding_number=0)
+    harmonics = Tides.Apply_Spectral_To_Matrix(data, bathy = bathy, expected_tide_periods = periods, zeros_padding_number=0)
     harmonics_matrix = np.array(harmonics).reshape((data[0].shape[0], data[0].shape[1], len(periods)))
 
     Tides.Create_netCDF({'P1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 0]) + abs(harmonics_matrix[:, :, 1]),
                    'K1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 2]) + abs(harmonics_matrix[:, :, 3]),
                    'O1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 4]) + abs(harmonics_matrix[:, :, 5]),
                    'S2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 6]) + abs(harmonics_matrix[:, :, 7]),
-                   'M2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 8]) + abs(harmonics_matrix[:, :, 9])}, file_name = 'tides.nc')
+                   'M2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 8]) + abs(harmonics_matrix[:, :, 9])}, data = data, file_name = 'tides.nc')
     
     try:
         Tides_file = Dataset('tides.nc', 'r', format='NETCDF4')

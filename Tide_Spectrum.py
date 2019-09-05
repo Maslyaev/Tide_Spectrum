@@ -71,7 +71,9 @@ def Apply_Spectral_To_Matrix(Data, bathy = None, d = 1.0, expected_tide_periods 
     
     Data = Add_zeros_padding(Data, zeros_padding_number)
 
-    if bathy == None:
+    try:
+        _ = bathy.shape
+    except AttributeError:
         bathy = np.ones(Data[0, :, :].shape)
 
     result_matrix = []
@@ -80,7 +82,7 @@ def Apply_Spectral_To_Matrix(Data, bathy = None, d = 1.0, expected_tide_periods 
         for j in range(Data[0].shape[1]):
             print('processing cell i: %4d, j:%4d' % (i, j)) #; expected period: %3.2f , expected_tide_periods
             if bathy[i, j]:
-                temp = Process_point(Data[:, i, j], d = d, expected_tide_periods = expected_tide_periods, zeros_padding_number)
+                temp = Process_point(Data[:, i, j], d = d, expected_tide_periods = expected_tide_periods, zeros_padding_number = zeros_padding_number)
                 res_row.append(temp)
             else:
                 temp = [0j] * len(expected_tide_periods)
@@ -191,7 +193,7 @@ def Create_variable(file, name, var_format, dimensions):
     return [real_part, imaginary_part]
 
 
-def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = ''):
+def Create_netCDF(data_dict, data, file_name = 'noname.nc', file_description = ''):
     
     '''
     
@@ -199,6 +201,8 @@ def Create_netCDF(data_dict, file_name = 'noname.nc', file_description = ''):
     
     Parameters:
         data_dict : dictionary with structure: key - index of tide (e.g. 'P1_Elevation_harmonic'), value - matrix of tide amplitude;
+        
+        data : numpy marix, Data input for the framework, used only for shape parameters;
         
         file_name : string, output file name;
         
