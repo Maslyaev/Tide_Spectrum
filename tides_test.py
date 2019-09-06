@@ -40,14 +40,15 @@ if __name__ == "__main__":
     harmonics = Tides.Apply_Spectral_To_Matrix(data, bathy = bathy, expected_tide_periods = periods, zeros_padding_number=0)
     harmonics_matrix = np.array(harmonics).reshape((data[0].shape[0], data[0].shape[1], len(periods)))
 
-    Tides.Create_netCDF({'P1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 0]) + abs(harmonics_matrix[:, :, 1]),
-                   'K1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 2]) + abs(harmonics_matrix[:, :, 3]),
-                   'O1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 4]) + abs(harmonics_matrix[:, :, 5]),
-                   'S2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 6]) + abs(harmonics_matrix[:, :, 7]),
-                   'M2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 8]) + abs(harmonics_matrix[:, :, 9])}, data = data, file_name = 'tides.nc')
+    Tides.Create_netCDF_as_copy({'P1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 0].real) + abs(harmonics_matrix[:, :, 1].real) + (abs(harmonics_matrix[:, :, 0].imag) + abs(harmonics_matrix[:, :, 1].imag))*1j,
+                   'K1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 2].real) + abs(harmonics_matrix[:, :, 3].real) + (abs(harmonics_matrix[:, :, 2].imag) + abs(harmonics_matrix[:, :, 3].imag))*1j,
+                   'O1_Elevation_harmonic' : abs(harmonics_matrix[:, :, 4].real) + abs(harmonics_matrix[:, :, 5].real) + (abs(harmonics_matrix[:, :, 4].imag) + abs(harmonics_matrix[:, :, 5].imag))*1j,
+                   'S2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 6].real) + abs(harmonics_matrix[:, :, 7].real) + (abs(harmonics_matrix[:, :, 6].imag) + abs(harmonics_matrix[:, :, 7].imag))*1j,
+                   'M2_Elevation_harmonic' : abs(harmonics_matrix[:, :, 8].real) + abs(harmonics_matrix[:, :, 9].real) + (abs(harmonics_matrix[:, :, 8].imag) + abs(harmonics_matrix[:, :, 9].imag))*1j}, 
+        data = data, file_name = 'tides_new.nc', example_netCDF='tides_20130715.nc')
     
     try:
-        Tides_file = Dataset('tides.nc', 'r', format='NETCDF4')
+        Tides_file = Dataset('tides_new.nc', 'r', format='NETCDF4')
         Harmonic_Idx = 'M2' # Select harmonic index, supported ones: P1, K1, O1, S2, M2
         Plot_Harmonic(Harmonic_Idx, Tides_file)
     except RuntimeError:

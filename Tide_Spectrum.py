@@ -12,8 +12,11 @@ import numba as nb
 import numpy.fft as fft
 
 import matplotlib.pyplot as plt
-from netCDF4 import Dataset
 
+from netCDF4 import Dataset
+from shutil import copyfile
+
+import multiprocessing as mp
 
 def Process_point(val_ts, d = 1.0, expected_tide_periods = [12.4], zeros_padding_number = 0):
     '''
@@ -58,7 +61,8 @@ def Apply_Spectral_To_Matrix(Data, bathy = None, d = 1.0, expected_tide_periods 
     Parameters:
         Data : float numpy matrix with 3 dimensions: time, x, y, Contains data about SSH for the selected area;
         
-        bathy : numpy array of 0 and 1, optional: default values: 1, Contains data about the conditions of the points if they are land (value of 0) or in the sea (value of 1)
+        bathy : numpy array of 0 and 1, optional: default values: 1, 
+        Contains data about the conditions of the points if they are land (value of 0) or in the sea (value of 1). Recommended for speedup;
         
         d : float, optional: default value of 1.0, Period between observations;    
         
@@ -193,7 +197,7 @@ def Create_variable(file, name, var_format, dimensions):
     return [real_part, imaginary_part]
 
 
-def Create_netCDF(data_dict, data, file_name = 'noname.nc', file_description = ''):
+def Create_netCDF(data_dict, data, file_name = 'noname.nc', file_description = '', example_netCDF = None):
     
     '''
     
@@ -213,8 +217,13 @@ def Create_netCDF(data_dict, data, file_name = 'noname.nc', file_description = '
     nc_file = Dataset(file_name, 'w', format = 'NETCDF4')
     nc_file.description = file_description
     
-    nc_file.createDimension(dimname = 'x_grid_T', size = data[0].shape[0])
-    nc_file.createDimension(dimname = 'y_grid_T', size = data[0].shape[1])
+    try:
+        for dname, the_dim in example_netCDF.dimensions.iteritems():
+            print(dname, len(the_dim))
+            nc_file.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
+    except AttributeError:
+        nc_file.createDimension(dimname = 'x_grid_T', size = data[0].shape[0])
+        nc_file.createDimension(dimname = 'y_grid_T', size = data[0].shape[1])
 
     x_grid_T = nc_file.createVariable('x_grid_T', 'f4', ('x_grid_T',))
     y_grid_T = nc_file.createVariable('y_grid_T', 'f4', ('y_grid_T',))
@@ -237,7 +246,43 @@ def Create_netCDF(data_dict, data, file_name = 'noname.nc', file_description = '
             variable[:, :] = data_dict[name.replace('_imaginary_part', '')].imag
     nc_file.close()
     
+def Any_key_in_string(dictionary, string):
+    for key, value in dictionary.items():
+        if key in string:
+            return True
+    return False
 
+def Create_netCDF_as_copy(data_dict, data, file_name = 'noname.nc', example_netCDF = None):
+    
+    '''
+    
+    Write netCDF file with the calculated tide amplitudes; 
+    
+    Parameters:
+        data_dict : dictionary with structure: key - index of tide (e.g. 'P1_Elevation_harmonic'), value - matrix of tide amplitude;
+        
+        data : numpy marix, Data input for the framework, used only for shape parameters;
+        
+        file_name : string, output file name;    
+        
+    '''
+    
+    print('Copying new file')    
+    copyfile(example_netCDF, file_name) 
+    
+    nc_file = Dataset(file_name, 'a', format = 'NETCDF4')
+
+    print(data_dict.keys())
+    for var_name in nc_file.variables:
+        name = var_name
+        if 'Elevation' not in name or not Any_key_in_string(data_dict, name): 
+            continue
+        if 'real' in name:
+            print(data_dict[name.replace('_real_part', '')].real.shape, nc_file.variables[var_name][:, :].shape)
+            nc_file.variables[var_name][:, :] = data_dict[name.replace('_real_part', '')].real
+        elif 'imaginary' in name:
+            nc_file.variables[var_name][:, :] = data_dict[name.replace('_imaginary_part', '')].imag
+    nc_file.close()
     
     
     
