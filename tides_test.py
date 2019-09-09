@@ -9,7 +9,7 @@ Created on Thu Sep  5 17:35:43 2019
 import sys
 import numpy as np
 from netCDF4 import Dataset
-import Tide_Spectrum_parallel as Tides
+import Tide_Spectrum as Tides
 import matplotlib.pyplot as plt
 
 def Heatmap(Matrix, interval = None, area = ((0, 1), (0, 1))):
